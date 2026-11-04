@@ -1,0 +1,903 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Semáforo de Ruido Escolar - PDI</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts - Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;800;900&display=swap" rel="stylesheet">
+    <!-- Lucide Icons CDN -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            transition: background-color 0.6s ease, border-color 0.6s ease;
+        }
+
+        /* Tonalidades pastel suaves */
+        .bg-pastel-green {
+            background-color: #e8f5e9;
+            color: #1b5e20;
+        }
+        
+        .bg-pastel-yellow {
+            background-color: #fffde7;
+            color: #f57f17;
+            animation: pulsePastel 2s infinite ease-in-out;
+        }
+
+        .bg-alert-red {
+            background-color: #ff1744;
+            color: #ffffff;
+            animation: flashRed 0.5s infinite alternate ease-in-out;
+        }
+
+        @keyframes pulsePastel {
+            0%, 100% { background-color: #fffde7; }
+            50% { background-color: #fff9c4; }
+        }
+
+        @keyframes flashRed {
+            0% { background-color: #d50000; box-shadow: inset 0 0 100px rgba(0,0,0,0.5); }
+            100% { background-color: #ff5252; box-shadow: inset 0 0 10px rgba(0,0,0,0.2); }
+        }
+
+        /* Glassmorphism para paneles en PDI */
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.75);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.4);
+        }
+
+        .glass-panel-dark {
+            background: rgba(15, 23, 42, 0.85);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        /* VU meter custom transition */
+        .vu-bar {
+            transition: height 0.08s ease-out;
+        }
+
+        /* Custom scrollbars */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(0,0,0,0.05);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(0,0,0,0.2);
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body id="app-body" class="bg-pastel-green min-h-screen flex flex-col justify-between overflow-x-hidden selection:bg-indigo-500 selection:text-white">
+
+    <!-- BARRA SUPERIOR: INFORMACIÓN Y ACCIONES -->
+    <header class="w-full p-4 md:p-6 flex flex-wrap justify-between items-center gap-4 z-10">
+        <!-- Asignatura & Estado Actual -->
+        <div class="flex items-center gap-3 glass-panel px-5 py-3 rounded-2xl shadow-sm">
+            <div id="subject-icon" class="p-2.5 bg-emerald-600 text-white rounded-xl shadow">
+                <i data-lucide="book-open" class="w-6 h-6"></i>
+            </div>
+            <div>
+                <span class="text-xs uppercase font-bold tracking-wider opacity-75 flex items-center gap-1.5">
+                    <span id="schedule-badge" class="w-2 h-2 rounded-full bg-emerald-500 inline-block"></span>
+                    <span id="day-time-display">Detectando horario...</span>
+                </span>
+                <h1 id="current-subject-display" class="text-xl md:text-2xl font-extrabold tracking-tight">
+                    Cargando asignatura...
+                </h1>
+            </div>
+        </div>
+
+        <!-- Selector manual de Asignatura / Modo Libre -->
+        <div class="flex items-center gap-2">
+            <select id="subject-select" class="glass-panel text-slate-800 font-semibold text-sm rounded-xl px-4 py-3 border border-white/50 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm cursor-pointer">
+                <option value="AUTO">📅 Modo Automático (Según Horario)</option>
+                <optgroup label="Asignaturas">
+                    <option value="Apoyo psicosocial">Apoyo psicosocial</option>
+                    <option value="Digitalización">Digitalización</option>
+                    <option value="Itinerario profesional">Itinerario profesional</option>
+                    <option value="Atención sanitaria">Atención sanitaria</option>
+                    <option value="Características y necesidades de personas dependientes">Características y necesidades</option>
+                    <option value="Inglés">Inglés</option>
+                    <option value="Primeros auxilios">Primeros auxilios</option>
+                    <option value="Tutoría">Tutoría</option>
+                    <option value="Destrezas sociales">Destrezas sociales</option>
+                </optgroup>
+                <option value="LIBRE">🎨 Modo Libre / General</option>
+            </select>
+
+            <!-- Botón Ajustes / Calibración -->
+            <button id="btn-settings" class="glass-panel p-3 rounded-xl hover:bg-white/90 active:scale-95 transition text-slate-800 shadow-sm flex items-center gap-2 font-bold text-sm" title="Calibración y Ajustes">
+                <i data-lucide="sliders" class="w-5 h-5"></i>
+                <span class="hidden sm:inline">Calibrar</span>
+            </button>
+
+            <!-- Botón Estadísticas -->
+            <button id="btn-stats" class="glass-panel p-3 rounded-xl hover:bg-white/90 active:scale-95 transition text-slate-800 shadow-sm flex items-center gap-2 font-bold text-sm" title="Estadísticas y Registros">
+                <i data-lucide="bar-chart-2" class="w-5 h-5"></i>
+                <span class="hidden sm:inline">Registros</span>
+            </button>
+
+            <!-- Toggle Fullscreen -->
+            <button id="btn-fullscreen" class="glass-panel p-3 rounded-xl hover:bg-white/90 active:scale-95 transition text-slate-800 shadow-sm" title="Pantalla Completa">
+                <i data-lucide="maximize" class="w-5 h-5"></i>
+            </button>
+        </div>
+    </header>
+
+    <!-- PANTALLA PRINCIPAL: SEMÁFORO Y MEDIDOR VISUAL DE RUIDO -->
+    <main class="flex-1 flex flex-col items-center justify-center p-4 md:p-8 text-center relative">
+
+        <!-- BOTÓN DE INICIO REQUERIDO POR EL NAVEGADOR -->
+        <div id="start-overlay" class="absolute inset-0 flex flex-col items-center justify-center z-20 bg-slate-950/40 backdrop-blur-md p-6">
+            <div class="glass-panel-dark text-white p-8 md:p-12 rounded-3xl max-w-lg shadow-2xl text-center border border-white/20">
+                <div class="w-20 h-20 bg-emerald-500/20 text-emerald-400 rounded-full flex items-center justify-center mx-auto mb-6 ring-8 ring-emerald-500/10">
+                    <i data-lucide="mic" class="w-10 h-10"></i>
+                </div>
+                <h2 class="text-3xl font-black mb-3">Semáforo de Ruido Escolar</h2>
+                <p class="text-slate-300 text-sm md:text-base mb-8 leading-relaxed">
+                    Para captar el nivel de volumen en el aula a través de la Pizarra Digital u ordenador, activa el micrófono.
+                </p>
+                <button id="btn-start" class="w-full py-4 px-8 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-lg rounded-2xl shadow-lg hover:shadow-emerald-500/30 transition transform active:scale-95 flex items-center justify-center gap-3">
+                    <i data-lucide="power" class="w-6 h-6"></i>
+                    INICIAR SEMÁFORO Y MICRÓFONO
+                </button>
+            </div>
+        </div>
+
+        <!-- INDICADOR CENTRAL DE ESTADO VIRTUAL -->
+        <div class="relative mb-6 md:mb-10 flex flex-col items-center">
+            <!-- Círculo gigante con luces de semáforo -->
+            <div id="traffic-light-container" class="flex gap-4 md:gap-8 bg-slate-900/80 p-5 md:p-7 rounded-full shadow-2xl border-4 border-slate-700/50 backdrop-blur">
+                <div id="light-green" class="w-16 h-16 md:w-24 md:h-24 rounded-full bg-emerald-500/20 border-2 border-emerald-500/40 transition-all duration-300 flex items-center justify-center">
+                    <i data-lucide="smile" class="w-10 h-10 md:w-14 md:h-14 opacity-30 text-emerald-400"></i>
+                </div>
+                <div id="light-yellow" class="w-16 h-16 md:w-24 md:h-24 rounded-full bg-amber-500/20 border-2 border-amber-500/40 transition-all duration-300 flex items-center justify-center">
+                    <i data-lucide="meh" class="w-10 h-10 md:w-14 md:h-14 opacity-30 text-amber-400"></i>
+                </div>
+                <div id="light-red" class="w-16 h-16 md:w-24 md:h-24 rounded-full bg-red-500/20 border-2 border-red-500/40 transition-all duration-300 flex items-center justify-center">
+                    <i data-lucide="frown" class="w-10 h-10 md:w-14 md:h-14 opacity-30 text-red-400"></i>
+                </div>
+            </div>
+
+            <!-- Texto descriptivo de estado -->
+            <h2 id="status-text" class="text-3xl md:text-5xl font-black mt-6 tracking-tight drop-shadow-sm">
+                Micrófono Inactivo
+            </h2>
+            <p id="status-subtext" class="text-base md:text-xl font-medium mt-2 opacity-80">
+                Presiona "Iniciar Semáforo" para comenzar a medir.
+            </p>
+        </div>
+
+        <!-- BARRA VU-METER VISUAL DE VOLUMEN DE RUIDO -->
+        <div class="w-full max-w-2xl glass-panel p-4 rounded-3xl shadow-lg border border-white/60">
+            <div class="flex justify-between items-center text-xs md:text-sm font-bold mb-2 opacity-80 px-2">
+                <span>NIVEL DE RUIDO EN TIEMPO REAL</span>
+                <span id="decibel-display" class="font-mono text-base">0 %</span>
+            </div>
+
+            <div class="w-full h-8 bg-slate-900/10 rounded-2xl p-1 overflow-hidden relative">
+                <!-- Barra Dinámica de Volumen -->
+                <div id="vu-bar-fill" class="h-full bg-emerald-500 rounded-xl transition-all duration-75 w-0"></div>
+
+                <!-- Marcadores de Umbrales (Líneas de corte) -->
+                <div id="threshold-yellow-marker" class="absolute top-0 bottom-0 w-1 bg-amber-500 shadow" style="left: 45%;"></div>
+                <div id="threshold-red-marker" class="absolute top-0 bottom-0 w-1.5 bg-red-600 shadow" style="left: 75%;"></div>
+            </div>
+
+            <div class="flex justify-between text-xs font-semibold mt-2 px-2 opacity-60">
+                <span>Silencio</span>
+                <span id="lbl-thresh-warn">Aviso: 45%</span>
+                <span id="lbl-thresh-alarm">Alarma: 75%</span>
+            </div>
+        </div>
+
+        <!-- RESUMEN RÁPIDO DE LA CLASE EN CURSO (SESIÓN ACTUAL) -->
+        <div class="mt-8 flex flex-wrap justify-center gap-4 md:gap-8">
+            <div class="glass-panel px-6 py-3 rounded-2xl flex items-center gap-3">
+                <div class="w-3 h-3 rounded-full bg-emerald-500"></div>
+                <div class="text-left">
+                    <div class="text-xs uppercase font-bold opacity-60">T. Tolerable</div>
+                    <div id="counter-session-green" class="font-mono text-lg font-black">00:00</div>
+                </div>
+            </div>
+            <div class="glass-panel px-6 py-3 rounded-2xl flex items-center gap-3">
+                <div class="w-3 h-3 rounded-full bg-amber-500"></div>
+                <div class="text-left">
+                    <div class="text-xs uppercase font-bold opacity-60">T. Molesto</div>
+                    <div id="counter-session-yellow" class="font-mono text-lg font-black">00:00</div>
+                </div>
+            </div>
+            <div class="glass-panel px-6 py-3 rounded-2xl flex items-center gap-3">
+                <div class="w-3 h-3 rounded-full bg-red-500"></div>
+                <div class="text-left">
+                    <div class="text-xs uppercase font-bold opacity-60">Alarmas (Rojo)</div>
+                    <div id="counter-session-red-count" class="font-mono text-lg font-black">0 avisos</div>
+                </div>
+            </div>
+            <button id="btn-reset-session" class="glass-panel px-4 py-3 rounded-2xl hover:bg-white/90 text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 active:scale-95 transition">
+                <i data-lucide="rotate-ccw" class="w-4 h-4"></i> Reiniciar Hora
+            </button>
+        </div>
+    </main>
+
+    <!-- FOOTER INFORMATIVO -->
+    <footer class="w-full p-4 text-center text-xs font-semibold opacity-60">
+        Diseñado para Pizarra Digital Interactiva (PDI) • Sensibilidad adaptable según acústica del aula
+    </footer>
+
+    <!-- MODAL 1: CALIBRACIÓN Y AJUSTES DE AUDIO -->
+    <div id="modal-settings" class="fixed inset-0 bg-slate-950/60 backdrop-blur-md flex items-center justify-center p-4 z-50 hidden">
+        <div class="glass-panel-dark text-white rounded-3xl p-6 md:p-8 w-full max-w-xl shadow-2xl border border-white/20">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-2xl font-bold flex items-center gap-2">
+                    <i data-lucide="sliders" class="text-indigo-400"></i> Calibración del Micrófono
+                </h3>
+                <button id="btn-close-settings" class="p-2 hover:bg-white/10 rounded-xl transition">
+                    <i data-lucide="x" class="w-6 h-6"></i>
+                </button>
+            </div>
+
+            <div class="space-y-6">
+                <!-- Sensibilidad Micrófono -->
+                <div>
+                    <div class="flex justify-between font-medium text-sm mb-2">
+                        <label for="slider-sensitivity">Ganancia / Sensibilidad Micrófono</label>
+                        <span id="val-sensitivity" class="font-mono text-indigo-400">1.5x</span>
+                    </div>
+                    <input type="range" id="slider-sensitivity" min="0.5" max="4" step="0.1" value="1.5" class="w-full accent-indigo-500 h-2 bg-slate-800 rounded-lg cursor-pointer">
+                    <p class="text-xs text-slate-400 mt-1">Aumenta este valor si la PDI capta muy flojo el sonido del aula.</p>
+                </div>
+
+                <!-- Umbral Aviso (Amarillo) -->
+                <div>
+                    <div class="flex justify-between font-medium text-sm mb-2">
+                        <label for="slider-thresh-yellow">Umbral 1: Ruido Molesto (Amarillo)</label>
+                        <span id="val-thresh-yellow" class="font-mono text-amber-400">45 %</span>
+                    </div>
+                    <input type="range" id="slider-thresh-yellow" min="10" max="80" step="1" value="45" class="w-full accent-amber-500 h-2 bg-slate-800 rounded-lg cursor-pointer">
+                </div>
+
+                <!-- Umbral Alarma (Rojo) -->
+                <div>
+                    <div class="flex justify-between font-medium text-sm mb-2">
+                        <label for="slider-thresh-red">Umbral 2: Alarma Ruido Crítico (Rojo)</label>
+                        <span id="val-thresh-red" class="font-mono text-red-400">75 %</span>
+                    </div>
+                    <input type="range" id="slider-thresh-red" min="20" max="95" step="1" value="75" class="w-full accent-red-500 h-2 bg-slate-800 rounded-lg cursor-pointer">
+                </div>
+
+                <!-- Ajustes Sonido de Alarma -->
+                <div class="p-4 bg-slate-900/60 rounded-2xl border border-white/5 space-y-3">
+                    <div class="flex items-center justify-between">
+                        <span class="text-sm font-semibold flex items-center gap-2">
+                            <i data-lucide="volume-2" class="w-4 h-4 text-emerald-400"></i> Alarma Sonora al entrar en Rojo
+                        </span>
+                        <input type="checkbox" id="chk-sound-enabled" checked class="w-5 h-5 accent-emerald-500 rounded cursor-pointer">
+                    </div>
+                    <div class="flex items-center justify-between text-xs text-slate-400">
+                        <span>Frecuencia del Beep Sintético</span>
+                        <button id="btn-test-sound" class="px-3 py-1 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-bold transition">
+                            Probar Tono
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="mt-8">
+                <button id="btn-save-settings" class="w-full py-3 bg-indigo-600 hover:bg-indigo-500 font-bold rounded-xl transition text-white shadow-lg">
+                    Guardar Ajustes
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL 2: REGISTROS Y CONTADORES (DIARIO Y SEMANAL) -->
+    <div id="modal-stats" class="fixed inset-0 bg-slate-950/60 backdrop-blur-md flex items-center justify-center p-4 z-50 hidden">
+        <div class="glass-panel-dark text-white rounded-3xl p-6 md:p-8 w-full max-w-3xl shadow-2xl border border-white/20 max-h-[90vh] flex flex-col">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-2xl font-bold flex items-center gap-2">
+                    <i data-lucide="bar-chart-2" class="text-indigo-400"></i> Registros de Evolución de Ruido
+                </h3>
+                <button id="btn-close-stats" class="p-2 hover:bg-white/10 rounded-xl transition">
+                    <i data-lucide="x" class="w-6 h-6"></i>
+                </button>
+            </div>
+
+            <div class="overflow-y-auto space-y-6 pr-2">
+                <!-- CONTADOR 2: REGISTRO DIARIO Y DESGLOSE -->
+                <div class="bg-slate-900/60 p-5 rounded-2xl border border-white/5">
+                    <h4 class="text-lg font-bold text-indigo-300 mb-3 flex items-center gap-2">
+                        <i data-lucide="calendar" class="w-5 h-5"></i> Resumen Diario de Hoy
+                    </h4>
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                        <div class="bg-slate-800/80 p-3 rounded-xl">
+                            <span class="text-xs text-slate-400 font-semibold block">Total Alarmas (Rojo)</span>
+                            <span id="stat-today-red-count" class="text-2xl font-black text-red-400">0</span>
+                        </div>
+                        <div class="bg-slate-800/80 p-3 rounded-xl">
+                            <span class="text-xs text-slate-400 font-semibold block">Tiempo Tolerable</span>
+                            <span id="stat-today-green-time" class="text-lg font-mono font-bold text-emerald-400">0m</span>
+                        </div>
+                        <div class="bg-slate-800/80 p-3 rounded-xl">
+                            <span class="text-xs text-slate-400 font-semibold block">Tiempo Molesto</span>
+                            <span id="stat-today-yellow-time" class="text-lg font-mono font-bold text-amber-400">0m</span>
+                        </div>
+                        <div class="bg-slate-800/80 p-3 rounded-xl">
+                            <span class="text-xs text-slate-400 font-semibold block">Tiempo Crítico</span>
+                            <span id="stat-today-red-time" class="text-lg font-mono font-bold text-red-400">0m</span>
+                        </div>
+                    </div>
+
+                    <!-- Desglose por asignaturas -->
+                    <h5 class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">Desglose por Asignatura Impartida Hoy:</h5>
+                    <div id="stats-subject-list" class="space-y-2 text-sm">
+                        <!-- Se puebla dinámicamente -->
+                        <div class="text-xs text-slate-500 italic">No hay registros de asignaturas en el día de hoy.</div>
+                    </div>
+                </div>
+
+                <!-- CONTADOR 3: EVOLUCIÓN SEMANAL -->
+                <div class="bg-slate-900/60 p-5 rounded-2xl border border-white/5">
+                    <h4 class="text-lg font-bold text-emerald-300 mb-3 flex items-center gap-2">
+                        <i data-lucide="trending-up" class="w-5 h-5"></i> Acumulado Semanal del Grupo
+                    </h4>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div class="bg-slate-800/80 p-4 rounded-xl">
+                            <span class="text-xs text-slate-400 font-semibold block">Alarmas en la Semana</span>
+                            <span id="stat-week-red-count" class="text-3xl font-black text-red-400">0</span>
+                        </div>
+                        <div class="bg-slate-800/80 p-4 rounded-xl">
+                            <span class="text-xs text-slate-400 font-semibold block">% Tiempo Ruido Tolerable</span>
+                            <span id="stat-week-green-pct" class="text-3xl font-black text-emerald-400">100%</span>
+                        </div>
+                        <div class="bg-slate-800/80 p-4 rounded-xl">
+                            <span class="text-xs text-slate-400 font-semibold block">Evaluación Cualitativa</span>
+                            <span id="stat-week-evaluation" class="text-sm font-bold text-amber-300 block mt-1">¡Excelente ambiente!</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="mt-6 pt-4 border-t border-white/10 flex justify-between items-center">
+                <button id="btn-clear-stats" class="px-4 py-2 bg-red-500/20 hover:bg-red-500/40 text-red-300 rounded-xl text-xs font-bold transition flex items-center gap-1.5">
+                    <i data-lucide="trash-2" class="w-4 h-4"></i> Resetear Todos los Registros
+                </button>
+                <button id="btn-close-stats-footer" class="px-6 py-2.5 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-sm font-bold transition">
+                    Cerrar
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- LÓGICA DE JAVASCRIPT -->
+    <script>
+        // HORARIO OFICIAL PROPORCIONADO
+        // 0: Domingo, 1: Lunes, 2: Martes, 3: Miércoles, 4: Jueves, 5: Viernes, 6: Sábado
+        const HORARIO = {
+            1: [ // LUNES
+                { start: "08:15", end: "10:00", subject: "Apoyo psicosocial" },
+                { start: "10:00", end: "10:20", subject: "Recreo" },
+                { start: "10:20", end: "11:10", subject: "Digitalización" },
+                { start: "11:15", end: "12:05", subject: "Itinerario profesional" },
+                { start: "12:05", end: "12:25", subject: "Recreo" },
+                { start: "12:25", end: "14:10", subject: "Atención sanitaria" }
+            ],
+            2: [ // MARTES
+                { start: "08:15", end: "10:00", subject: "Características y necesidades de personas dependientes" },
+                { start: "10:00", end: "10:20", subject: "Recreo" },
+                { start: "10:20", end: "12:05", subject: "Apoyo psicosocial" },
+                { start: "12:05", end: "12:25", subject: "Recreo" },
+                { start: "12:25", end: "13:15", subject: "Inglés" },
+                { start: "13:20", end: "14:10", subject: "Primeros auxilios" }
+            ],
+            3: [ // MIÉRCOLES
+                { start: "08:15", end: "09:05", subject: "Tutoría" },
+                { start: "09:10", end: "10:00", subject: "Inglés" },
+                { start: "10:00", end: "10:20", subject: "Recreo" },
+                { start: "10:20", end: "12:05", subject: "Apoyo psicosocial" },
+                { start: "12:05", end: "12:25", subject: "Recreo" },
+                { start: "12:25", end: "14:10", subject: "Itinerario profesional" }
+            ],
+            4: [ // JUEVES
+                { start: "08:15", end: "10:00", subject: "Destrezas sociales" },
+                { start: "10:00", end: "10:20", subject: "Recreo" },
+                { start: "10:20", end: "12:05", subject: "Atención sanitaria" },
+                { start: "12:05", end: "12:25", subject: "Recreo" },
+                { start: "12:25", end: "14:10", subject: "Características y necesidades de personas dependientes" }
+            ],
+            5: [ // VIERNES
+                { start: "08:15", end: "10:00", subject: "Destrezas sociales" },
+                { start: "10:00", end: "10:20", subject: "Recreo" },
+                { start: "10:20", end: "12:05", subject: "Atención sanitaria" },
+                { start: "12:05", end: "12:25", subject: "Recreo" },
+                { start: "12:25", end: "13:15", subject: "Atención sanitaria" },
+                { start: "13:20", end: "14:10", subject: "Características y necesidades de personas dependientes" }
+            ]
+        };
+
+        // ESTADO GLOBAL Y CONFIGURACIÓN
+        let audioContext = null;
+        let analyser = null;
+        let microphoneStream = null;
+        let isAudioActive = false;
+
+        let config = {
+            sensitivity: 1.5,
+            threshYellow: 45,
+            threshRed: 75,
+            soundEnabled: true
+        };
+
+        let currentTrafficState = 'green'; // 'green', 'yellow', 'red'
+        let lastAlarmSoundTime = 0;
+
+        // CONTADORES DE TIEMPO (en segundos)
+        let sessionStats = {
+            greenSec: 0,
+            yellowSec: 0,
+            redSec: 0,
+            redCount: 0
+        };
+
+        // Cargar persistencia de LocalStorage
+        function loadSettingsAndStats() {
+            const savedConfig = localStorage.getItem('semaforo_config');
+            if (savedConfig) {
+                config = { ...config, ...JSON.parse(savedConfig) };
+            }
+
+            // Actualizar controles UI con la config
+            document.getElementById('slider-sensitivity').value = config.sensitivity;
+            document.getElementById('val-sensitivity').innerText = config.sensitivity.toFixed(1) + 'x';
+            document.getElementById('slider-thresh-yellow').value = config.threshYellow;
+            document.getElementById('val-thresh-yellow').innerText = config.threshYellow + ' %';
+            document.getElementById('slider-thresh-red').value = config.threshRed;
+            document.getElementById('val-thresh-red').innerText = config.threshRed + ' %';
+            document.getElementById('chk-sound-enabled').checked = config.soundEnabled;
+
+            updateMarkerPositions();
+        }
+
+        function saveConfig() {
+            config.sensitivity = parseFloat(document.getElementById('slider-sensitivity').value);
+            config.threshYellow = parseInt(document.getElementById('slider-thresh-yellow').value);
+            config.threshRed = parseInt(document.getElementById('slider-thresh-red').value);
+            config.soundEnabled = document.getElementById('chk-sound-enabled').checked;
+
+            localStorage.setItem('semaforo_config', JSON.stringify(config));
+            updateMarkerPositions();
+        }
+
+        function updateMarkerPositions() {
+            document.getElementById('threshold-yellow-marker').style.left = config.threshYellow + '%';
+            document.getElementById('threshold-red-marker').style.left = config.threshRed + '%';
+            document.getElementById('lbl-thresh-warn').innerText = `Aviso: ${config.threshYellow}%`;
+            document.getElementById('lbl-thresh-alarm').innerText = `Alarma: ${config.threshRed}%`;
+        }
+
+        // DETECCIÓN AUTOMÁTICA DE ASIGNATURA
+        function getAutoSubject() {
+            const now = new Date();
+            const day = now.getDay();
+            const hours = String(now.getHours()).padStart(2, '0');
+            const minutes = String(now.getMinutes()).padStart(2, '0');
+            const currentTimeStr = `${hours}:${minutes}`;
+
+            const dayNames = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
+            const dayText = `${dayNames[day]} ${currentTimeStr}`;
+
+            document.getElementById('day-time-display').innerText = dayText;
+
+            if (!HORARIO[day]) {
+                return { subject: "Fuera de Horario Lectivo", isBreak: false };
+            }
+
+            const daySchedule = HORARIO[day];
+            for (let slot of daySchedule) {
+                if (currentTimeStr >= slot.start && currentTimeStr < slot.end) {
+                    return {
+                        subject: slot.subject,
+                        isBreak: slot.subject === "Recreo"
+                    };
+                }
+            }
+
+            return { subject: "Fuera de Horario", isBreak: false };
+        }
+
+        function updateSubjectDisplay() {
+            const mode = document.getElementById('subject-select').value;
+            let finalSubject = "";
+            let isBreak = false;
+
+            if (mode === "AUTO") {
+                const auto = getAutoSubject();
+                finalSubject = auto.subject;
+                isBreak = auto.isBreak;
+            } else if (mode === "LIBRE") {
+                finalSubject = "Modo Libre / General";
+                document.getElementById('day-time-display').innerText = "Libre";
+            } else {
+                finalSubject = mode;
+                document.getElementById('day-time-display').innerText = "Manual";
+            }
+
+            document.getElementById('current-subject-display').innerText = finalSubject;
+            
+            const badge = document.getElementById('schedule-badge');
+            if (isBreak) {
+                badge.className = "w-2 h-2 rounded-full bg-amber-500 inline-block animate-ping";
+            } else {
+                badge.className = "w-2 h-2 rounded-full bg-emerald-500 inline-block";
+            }
+
+            return finalSubject;
+        }
+
+        // INICIALIZACIÓN WEB AUDIO API Y MICRÓFONO
+        async function initAudio() {
+            try {
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                analyser = audioContext.createAnalyser();
+                analyser.fftSize = 256;
+
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    audio: {
+                        echoCancellation: false,
+                        noiseSuppression: false,
+                        autoGainControl: false
+                    }
+                });
+
+                microphoneStream = stream;
+                const source = audioContext.createMediaStreamSource(stream);
+                source.connect(analyser);
+
+                isAudioActive = true;
+                document.getElementById('start-overlay').classList.add('hidden');
+                
+                // Iniciar bucle de procesamiento de audio
+                processAudio();
+            } catch (err) {
+                console.error("Error al acceder al micrófono:", err);
+                alert("No se pudo acceder al micrófono de la PDI/Equipo. Verifica los permisos del navegador.");
+            }
+        }
+
+        // EMISOR DE SONIDO DE ALARMA (SINTETIZADOR WEB AUDIO)
+        function playAlarmSound() {
+            if (!config.soundEnabled || !audioContext) return;
+
+            const now = Date.now();
+            if (now - lastAlarmSoundTime < 2000) return; // Evitar sonido continuo insoportable
+            lastAlarmSoundTime = now;
+
+            const osc = audioContext.createOscillator();
+            const gain = audioContext.createGain();
+
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(880, audioContext.currentTime); // Nota La5 (880Hz)
+            osc.frequency.exponentialRampToValueAtTime(440, audioContext.currentTime + 0.4);
+
+            gain.gain.setValueAtTime(0.3, audioContext.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.4);
+
+            osc.connect(gain);
+            gain.connect(audioContext.destination);
+
+            osc.start();
+            osc.stop(audioContext.currentTime + 0.4);
+        }
+
+        // PROCESAMIENTO DE AUDIO EN TIEMPO REAL
+        function processAudio() {
+            if (!isAudioActive) return;
+
+            const bufferLength = analyser.frequencyBinCount;
+            const dataArray = new Uint8Array(bufferLength);
+            analyser.getByteFrequencyData(dataArray);
+
+            // Calcular nivel RMS
+            let sum = 0;
+            for (let i = 0; i < bufferLength; i++) {
+                sum += dataArray[i] * dataArray[i];
+            }
+            let rms = Math.sqrt(sum / bufferLength);
+
+            // Escalar nivel normalizado de 0 a 100 con la sensibilidad
+            let normalizedVolume = Math.min(100, Math.round((rms / 128) * 100 * config.sensitivity));
+
+            // Actualizar interfaz VU-meter
+            const vuBar = document.getElementById('vu-bar-fill');
+            vuBar.style.width = normalizedVolume + '%';
+            document.getElementById('decibel-display').innerText = normalizedVolume + ' %';
+
+            // Evaluar estado del semáforo
+            evalState(normalizedVolume);
+
+            requestAnimationFrame(processAudio);
+        }
+
+        // LÓGICA DE ESTADOS DEL SEMÁFORO (VERDE - AMARILLO - ROJO)
+        function evalState(vol) {
+            const body = document.getElementById('app-body');
+            const statusText = document.getElementById('status-text');
+            const statusSubtext = document.getElementById('status-subtext');
+            const vuBar = document.getElementById('vu-bar-fill');
+
+            const lGreen = document.getElementById('light-green');
+            const lYellow = document.getElementById('light-yellow');
+            const lRed = document.getElementById('light-red');
+
+            if (vol >= config.threshRed) {
+                // ESTADO ROJO (CRÍTICO)
+                if (currentTrafficState !== 'red') {
+                    currentTrafficState = 'red';
+                    sessionStats.redCount++;
+                    saveDailyStats();
+                    playAlarmSound();
+                }
+
+                body.className = "bg-alert-red min-h-screen flex flex-col justify-between overflow-x-hidden transition-all duration-300";
+                statusText.innerText = "¡NIVEL DE RUIDO DEMASIADO ELEVADO!";
+                statusSubtext.innerText = "Por favor, hagamos silencio para continuar.";
+                vuBar.className = "h-full bg-red-600 rounded-xl transition-all duration-75";
+
+                lGreen.className = "w-16 h-16 md:w-24 md:h-24 rounded-full bg-emerald-500/10 border-2 border-emerald-500/20 flex items-center justify-center";
+                lYellow.className = "w-16 h-16 md:w-24 md:h-24 rounded-full bg-amber-500/10 border-2 border-amber-500/20 flex items-center justify-center";
+                lRed.className = "w-16 h-16 md:w-24 md:h-24 rounded-full bg-red-500 border-4 border-white shadow-lg scale-110 flex items-center justify-center animate-bounce";
+            } 
+            else if (vol >= config.threshYellow) {
+                // ESTADO AMARILLO (MOLESTO)
+                currentTrafficState = 'yellow';
+                body.className = "bg-pastel-yellow min-h-screen flex flex-col justify-between overflow-x-hidden transition-all duration-300";
+                statusText.innerText = "Murmullo Elevado (Aviso)";
+                statusSubtext.innerText = "El volumen empieza a ser molesto.";
+                vuBar.className = "h-full bg-amber-500 rounded-xl transition-all duration-75";
+
+                lGreen.className = "w-16 h-16 md:w-24 md:h-24 rounded-full bg-emerald-500/10 border-2 border-emerald-500/20 flex items-center justify-center";
+                lYellow.className = "w-16 h-16 md:w-24 md:h-24 rounded-full bg-amber-500 border-4 border-amber-600 shadow-lg scale-110 flex items-center justify-center";
+                lRed.className = "w-16 h-16 md:w-24 md:h-24 rounded-full bg-red-500/10 border-2 border-red-500/20 flex items-center justify-center";
+            } 
+            else {
+                // ESTADO VERDE (TOLERABLE)
+                currentTrafficState = 'green';
+                body.className = "bg-pastel-green min-h-screen flex flex-col justify-between overflow-x-hidden transition-all duration-300";
+                statusText.innerText = "Ambiente Adecuado";
+                statusSubtext.innerText = "El nivel de ruido en el aula es fantástico.";
+                vuBar.className = "h-full bg-emerald-500 rounded-xl transition-all duration-75";
+
+                lGreen.className = "w-16 h-16 md:w-24 md:h-24 rounded-full bg-emerald-500 border-4 border-emerald-600 shadow-lg scale-110 flex items-center justify-center";
+                lYellow.className = "w-16 h-16 md:w-24 md:h-24 rounded-full bg-amber-500/10 border-2 border-amber-500/20 flex items-center justify-center";
+                lRed.className = "w-16 h-16 md:w-24 md:h-24 rounded-full bg-red-500/10 border-2 border-red-500/20 flex items-center justify-center";
+            }
+
+            document.getElementById('counter-session-red-count').innerText = `${sessionStats.redCount} avisos`;
+        }
+
+        // TEMPORIZADOR SEGUNDO A SEGUNDO PARA METRICAS Y PERSISTENCIA
+        setInterval(() => {
+            if (!isAudioActive) return;
+
+            if (currentTrafficState === 'green') sessionStats.greenSec++;
+            else if (currentTrafficState === 'yellow') sessionStats.yellowSec++;
+            else if (currentTrafficState === 'red') sessionStats.redSec++;
+
+            // Actualizar vista sesión
+            document.getElementById('counter-session-green').innerText = formatTime(sessionStats.greenSec);
+            document.getElementById('counter-session-yellow').innerText = formatTime(sessionStats.yellowSec);
+
+            // Guardar acumulados diarios en LocalStorage
+            saveDailyStats();
+            updateSubjectDisplay();
+        }, 1000);
+
+        function formatTime(sec) {
+            const m = Math.floor(sec / 60);
+            const s = sec % 60;
+            return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+        }
+
+        // GUARDADO DE REGISTROS (DIARIO Y POR ASIGNATURA) EN LOCALSTORAGE
+        function getTodayKey() {
+            const d = new Date();
+            return `semaforo_stats_${d.getFullYear()}_${d.getMonth()+1}_${d.getDate()}`;
+        }
+
+        function saveDailyStats() {
+            const key = getTodayKey();
+            const currentSubj = document.getElementById('current-subject-display').innerText;
+
+            let data = JSON.parse(localStorage.getItem(key)) || {
+                redCount: 0,
+                greenSec: 0,
+                yellowSec: 0,
+                redSec: 0,
+                bySubject: {}
+            };
+
+            // Sumar segundos
+            if (currentTrafficState === 'green') data.greenSec++;
+            else if (currentTrafficState === 'yellow') data.yellowSec++;
+            else if (currentTrafficState === 'red') data.redSec++;
+
+            data.redCount = sessionStats.redCount;
+
+            // Desglose por asignatura
+            if (!data.bySubject[currentSubj]) {
+                data.bySubject[currentSubj] = { redCount: 0, greenSec: 0, yellowSec: 0, redSec: 0 };
+            }
+            
+            if (currentTrafficState === 'green') data.bySubject[currentSubj].greenSec++;
+            else if (currentTrafficState === 'yellow') data.bySubject[currentSubj].yellowSec++;
+            else if (currentTrafficState === 'red') data.bySubject[currentSubj].redSec++;
+
+            data.bySubject[currentSubj].redCount = sessionStats.redCount;
+
+            localStorage.setItem(key, JSON.stringify(data));
+        }
+
+        function renderStatsModal() {
+            const key = getTodayKey();
+            const todayData = JSON.parse(localStorage.getItem(key)) || {
+                redCount: 0, greenSec: 0, yellowSec: 0, redSec: 0, bySubject: {}
+            };
+
+            // Cargar datos diarios
+            document.getElementById('stat-today-red-count').innerText = todayData.redCount;
+            document.getElementById('stat-today-green-time').innerText = Math.round(todayData.greenSec / 60) + ' min';
+            document.getElementById('stat-today-yellow-time').innerText = Math.round(todayData.yellowSec / 60) + ' min';
+            document.getElementById('stat-today-red-time').innerText = Math.round(todayData.redSec / 60) + ' min';
+
+            // Lista asignaturas hoy
+            const subjContainer = document.getElementById('stats-subject-list');
+            subjContainer.innerHTML = '';
+            
+            const keys = Object.keys(todayData.bySubject);
+            if (keys.length === 0) {
+                subjContainer.innerHTML = `<div class="text-xs text-slate-500 italic">Sin datos registrados hoy.</div>`;
+            } else {
+                keys.forEach(sub => {
+                    const item = todayData.bySubject[sub];
+                    const div = document.createElement('div');
+                    div.className = "flex justify-between items-center bg-slate-800/50 p-2.5 rounded-xl";
+                    div.innerHTML = `
+                        <span class="font-semibold text-slate-200">${sub}</span>
+                        <div class="flex gap-3 text-xs font-mono">
+                            <span class="text-emerald-400">🟢 ${Math.round(item.greenSec/60)}m</span>
+                            <span class="text-amber-400">🟡 ${Math.round(item.yellowSec/60)}m</span>
+                            <span class="text-red-400 font-bold">🔴 ${item.redCount} avisos</span>
+                        </div>
+                    `;
+                    subjContainer.appendChild(div);
+                });
+            }
+
+            // ACUMULADO SEMANAL (Buscar claves de los últimos 7 días)
+            let weekRedCount = 0;
+            let weekGreenSec = 0;
+            let weekTotalSec = 0;
+
+            for (let i = 0; i < 7; i++) {
+                const d = new Date();
+                d.setDate(d.getDate() - i);
+                const k = `semaforo_stats_${d.getFullYear()}_${d.getMonth()+1}_${d.getDate()}`;
+                const dayData = JSON.parse(localStorage.getItem(k));
+                if (dayData) {
+                    weekRedCount += dayData.redCount || 0;
+                    weekGreenSec += dayData.greenSec || 0;
+                    weekTotalSec += (dayData.greenSec || 0) + (dayData.yellowSec || 0) + (dayData.redSec || 0);
+                }
+            }
+
+            const greenPct = weekTotalSec > 0 ? Math.round((weekGreenSec / weekTotalSec) * 100) : 100;
+            document.getElementById('stat-week-red-count').innerText = weekRedCount;
+            document.getElementById('stat-week-green-pct').innerText = greenPct + '%';
+
+            const evalText = document.getElementById('stat-week-evaluation');
+            if (greenPct >= 85) {
+                evalText.innerText = "🌟 ¡Clase muy silenciosa y respetuosa!";
+                evalText.className = "text-sm font-bold text-emerald-400 block mt-1";
+            } else if (greenPct >= 65) {
+                evalText.innerText = "👍 Buen control general del volumen.";
+                evalText.className = "text-sm font-bold text-amber-300 block mt-1";
+            } else {
+                evalText.innerText = "⚠️ Se requiere mejorar la disciplina del ruido.";
+                evalText.className = "text-sm font-bold text-red-400 block mt-1";
+            }
+        }
+
+        // EVENT LISTENERS E INTERACTIVIDAD UI
+        window.addEventListener('DOMContentLoaded', () => {
+            lucide.createIcons();
+            loadSettingsAndStats();
+            updateSubjectDisplay();
+
+            // Botón Inicio
+            document.getElementById('btn-start').addEventListener('click', initAudio);
+
+            // Modales
+            document.getElementById('btn-settings').addEventListener('click', () => {
+                document.getElementById('modal-settings').classList.remove('hidden');
+            });
+            document.getElementById('btn-close-settings').addEventListener('click', () => {
+                document.getElementById('modal-settings').classList.add('hidden');
+            });
+            document.getElementById('btn-save-settings').addEventListener('click', () => {
+                saveConfig();
+                document.getElementById('modal-settings').classList.add('hidden');
+            });
+
+            document.getElementById('btn-stats').addEventListener('click', () => {
+                renderStatsModal();
+                document.getElementById('modal-stats').classList.remove('hidden');
+            });
+            document.getElementById('btn-close-stats').addEventListener('click', () => {
+                document.getElementById('modal-stats').classList.add('hidden');
+            });
+            document.getElementById('btn-close-stats-footer').addEventListener('click', () => {
+                document.getElementById('modal-stats').classList.add('hidden');
+            });
+
+            // Sliders Ajustes Dinámicos
+            document.getElementById('slider-sensitivity').addEventListener('input', (e) => {
+                document.getElementById('val-sensitivity').innerText = parseFloat(e.target.value).toFixed(1) + 'x';
+            });
+            document.getElementById('slider-thresh-yellow').addEventListener('input', (e) => {
+                document.getElementById('val-thresh-yellow').innerText = e.target.value + ' %';
+            });
+            document.getElementById('slider-thresh-red').addEventListener('input', (e) => {
+                document.getElementById('val-thresh-red').innerText = e.target.value + ' %';
+            });
+
+            // Probar Tono Alarma
+            document.getElementById('btn-test-sound').addEventListener('click', () => {
+                if (!audioContext) audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                lastAlarmSoundTime = 0;
+                playAlarmSound();
+            });
+
+            // Selector Asignatura
+            document.getElementById('subject-select').addEventListener('change', updateSubjectDisplay);
+
+            // Reiniciar Hora/Sesión
+            document.getElementById('btn-reset-session').addEventListener('click', () => {
+                sessionStats = { greenSec: 0, yellowSec: 0, redSec: 0, redCount: 0 };
+                document.getElementById('counter-session-green').innerText = "00:00";
+                document.getElementById('counter-session-yellow').innerText = "00:00";
+                document.getElementById('counter-session-red-count').innerText = "0 avisos";
+            });
+
+            // Borrar Registros
+            document.getElementById('btn-clear-stats').addEventListener('click', () => {
+                if (confirm("¿Seguro que deseas eliminar todos los registros guardados en la PDI?")) {
+                    Object.keys(localStorage).forEach(k => {
+                        if (k.startsWith('semaforo_stats_')) localStorage.removeItem(k);
+                    });
+                    renderStatsModal();
+                }
+            });
+
+            // Toggle Fullscreen
+            document.getElementById('btn-fullscreen').addEventListener('click', () => {
+                if (!document.fullscreenElement) {
+                    document.documentElement.requestFullscreen().catch(err => console.log(err));
+                } else {
+                    document.exitFullscreen().catch(err => console.log(err));
+                }
+            });
+        });
+    </script>
+</body>
+</html>
